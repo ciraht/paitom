@@ -1,8 +1,15 @@
 import fdb
 
 class Livros:
-    def __init__(self, id_livro, titulo, autor, ano_publicacao):
+    def __init__(self, id_livro, titulo, autor, ano_publicado):
         self.id_livro = id_livro
         self.titulo = titulo
         self.autor = autor
-        self.ano_publicacao = ano_publicacao
+        self.ano_publicado = ano_publicado
+
+class Usuarios:
+    def __init__(self, id_usuario, nome, email, senha):
+        self.id_usuario = id_usuario
+        self.nome = nome
+        self.email = email
+        self.senha = senha
