@@ -1,3 +1,4 @@
+import os
 from flask import Flask, jsonify, request, send_file
 from main import app, con
 from flask_bcrypt import generate_password_hash, check_password_hash
@@ -7,6 +8,9 @@ import jwt
 
 app.config.from_pyfile('config.py')
 senha_secreta = app.config['SECRET_KEY']
+
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 
 
 def generate_token(user_id):
@@ -38,6 +42,7 @@ def livro():
 
 @app.route('/livro', methods=['POST'])
 def livro_post():
+
     token = request.headers.get('Authorization')
     if not token:
         return jsonify({'mensagem': 'Token de autenticação necessário'}), 401
@@ -49,10 +54,11 @@ def livro_post():
         return jsonify({'mensagem': 'Token expirado'}), 401
     except jwt.InvalidTokenError:
         return jsonify({'mensagem': 'Token inválido'}), 401
-    data = request.get_json()
+    data = request.form
     titulo = data.get('titulo')
     autor = data.get('autor')
     ano_publicado = data.get('ano_publicado')
+    imagem = request.files.get('imagem')
 
     cursor = con.cursor()
 
@@ -61,10 +67,16 @@ def livro_post():
     if cursor.fetchone():
         return jsonify("Livro já cadastrado")
 
-    cursor.execute("INSERT INTO LIVROS(TITULO, AUTOR, ANO_PUBLICADO) VALUES (?, ?, ?)",
+    cursor.execute("INSERT INTO LIVROS(TITULO, AUTOR, ANO_PUBLICADO) VALUES (?, ?, ?) RETURNING ID_livro",
                    (titulo, autor, ano_publicado))
-
+    livro_id = cursor.fetchone()[0]
     con.commit()
+    if imagem:
+        nome_imagem = f"{livro_id}.jpeg"
+        pasta_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Livros")
+        os.makedirs(pasta_destino, exist_ok=True)
+        imagem_path = os.path.join(pasta_destino, nome_imagem)
+        imagem.save(imagem_path)
     cursor.close()
 
     return jsonify({
