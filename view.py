@@ -262,11 +262,13 @@ def login():
     cursor.execute('SELECT senha, id_usuario FROM USUARIOS WHERE EMAIL = ?', (email,))
     resultado = cursor.fetchone()
     cursor.close()
+
     if not resultado:
         return jsonify({"error": "Usuário não encontrado"}), 404
-    senha_hash = cursor.fetchone()
-    id_usuario = senha_hash[1]
-    senha_hash = senha_hash[0]
+
+    id_usuario = resultado[1]
+    senha_hash = resultado[0]
+
     if check_password_hash(senha_hash, senha):
         token = generate_token(id_usuario)
         return jsonify({'mensagem': 'Login efetuado.', 'token': token}), 200
