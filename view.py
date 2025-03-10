@@ -1,7 +1,23 @@
 from flask import Flask, jsonify, request
 from main import app, con
-from  flask_bcrypt import generate_password_hash, check_password_hash
+from flask_bcrypt import generate_password_hash, check_password_hash
 
+import jwt
+
+app.config.from_pyfile('config.py')
+senha_secreta = app.config['SECRET_KEY']
+
+
+def generate_token(user_id):
+    payload = {'id_usuario': user_id}
+    token = jwt.encode(payload, senha_secreta, algorithm='HS256')
+    return token
+
+def remover_bearer(token):
+    if token.startswith('Bearer '):
+        return token[len('Bearer '):]
+    else:
+        return token
 
 @app.route('/livro', methods=['GET'])
 def livro():
@@ -21,6 +37,17 @@ def livro():
 
 @app.route('/livro', methods=['POST'])
 def livro_post():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'mensagem': 'Token de autenticação necessário'}), 401
+    token = remover_bearer(token)
+    try:
+        payload = jwt.decode(token, senha_secreta, algorithms=['HS256'])
+        id_usuario = payload['id_usuario']
+    except jwt.ExpiredSignatureError:
+        return jsonify({'mensagem': 'Token expirado'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'mensagem': 'Token inválido'}), 401
     data = request.get_json()
     titulo = data.get('titulo')
     autor = data.get('autor')
@@ -47,6 +74,7 @@ def livro_post():
             'ano_publicado': ano_publicado
         }
     })
+
 
 @app.route('/livro/<int:id>', methods=['PUT'])
 def livro_put(id):
@@ -77,6 +105,7 @@ def livro_put(id):
             'ano_publicado': ano_publicado
         }
     })
+
 
 @app.route('/livro/<int:id>', methods=['DELETE'])
 def deletar_livro(id):
@@ -166,6 +195,7 @@ def usuario_post():
         }
     })
 
+
 @app.route('/usuario/<int:id>', methods=['PUT'])
 def usuario_put(id):
     cursor = con.cursor()
@@ -222,21 +252,23 @@ def deletar_usuario(id):
         'id_usuario': id
     })
 
+
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     email = data.get('email')
     senha = data.get('senha')
     cursor = con.cursor()
-    cursor.execute('SELECT senha FROM USUARIOS WHERE EMAIL = ?',
-                   (email,))
+    cursor.execute('SELECT senha, id_usuario FROM USUARIOS WHERE EMAIL = ?', (email,))
+    resultado = cursor.fetchone()
+    cursor.close()
+    if not resultado:
+        return jsonify({"error": "Usuário não encontrado"}), 404
     senha_hash = cursor.fetchone()
+    id_usuario = senha_hash[1]
     senha_hash = senha_hash[0]
     if check_password_hash(senha_hash, senha):
-        cursor.execute('SELECT NOME FROM USUARIOS WHERE EMAIL = ?',
-                       (email,))
-        nome = cursor.fetchone()
-        nome = nome[0].capitalize()
-        return jsonify(f'Login efetuado. Bem vindo, {nome}')
+        token = generate_token(id_usuario)
+        return jsonify({'mensagem': 'Login efetuado.', 'token': token}), 200
     else:
         return jsonify('Credenciais inválidas'), 401
